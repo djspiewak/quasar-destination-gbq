@@ -8,6 +8,7 @@ scmInfo in ThisBuild := Some(ScmInfo(
 
 val ArgonautVersion = "6.2.3"
 val SpecsVersion = "4.7.0"
+val SimpileLogging4Scala = "1.7.25"
 
 // Include to also publish a project's tests
 lazy val publishTestsSettings = Seq(
@@ -30,10 +31,17 @@ lazy val core = project
     quasarPluginName := "gbq",
     quasarPluginQuasarVersion := QuasarVersion,
     quasarPluginDestinationFqcn := Some("quasar.destination.gbq.GBQDestinationModule$"),
+
     quasarPluginDependencies ++= Seq(
+      "org.slf4s" %% "slf4s-api" % SimpileLogging4Scala,
       "io.argonaut"  %% "argonaut" % ArgonautVersion),
 
-    libraryDependencies ++= Seq(),
+    libraryDependencies ++= Seq(
+      "org.specs2" %% "specs2-core" % SpecsVersion % Test,
+      "com.slamdata" %% "quasar-foundation" % QuasarVersion,
+      "com.slamdata" %% "quasar-foundation" % QuasarVersion % Test classifier "tests",
+      "org.specs2" %% "specs2-scalacheck" % SpecsVersion % Test,
+      "org.specs2" %% "specs2-scalaz" % SpecsVersion % Test),
 
     publishAsOSSProject := true)
   .enablePlugins(AutomateHeaderPlugin, QuasarPlugin)
