@@ -7,6 +7,7 @@ scmInfo in ThisBuild := Some(ScmInfo(
   "scm:git@github.com:slamdata/quasar-destination-gbq.git"))
 
 val ArgonautVersion = "6.2.3"
+val Http4sVersion = "0.20.10"
 val SpecsVersion = "4.7.0"
 val SimpileLogging4Scala = "1.7.25"
 
@@ -33,10 +34,12 @@ lazy val core = project
     quasarPluginDestinationFqcn := Some("quasar.destination.gbq.GBQDestinationModule$"),
 
     quasarPluginDependencies ++= Seq(
+      "com.google.auth" % "google-auth-library-oauth2-http" % "0.18.0",
       "org.slf4s" %% "slf4s-api" % SimpileLogging4Scala,
       "io.argonaut"  %% "argonaut" % ArgonautVersion),
 
     libraryDependencies ++= Seq(
+      "org.http4s" %% "http4s-async-http-client" % Http4sVersion,
       "org.specs2" %% "specs2-core" % SpecsVersion % Test,
       "com.slamdata" %% "quasar-foundation" % QuasarVersion,
       "com.slamdata" %% "quasar-foundation" % QuasarVersion % Test classifier "tests",

@@ -25,6 +25,8 @@ import quasar.api.destination.DestinationType
 import quasar.api.destination.ResultSink
 import quasar.api.push.RenderConfig
 
+import org.http4s.client.Client
+
 import cats.effect.{Concurrent, ContextShift, Resource}
 import cats.implicits._
 import eu.timepit.refined.auto._
@@ -32,7 +34,7 @@ import org.slf4s.Logging
 import scalaz.NonEmptyList
 
 
-final class GBQDestination[F[_]: Concurrent: ContextShift: MonadResourceErr](project: String) extends Destination[F] with Logging {
+final class GBQDestination[F[_]: Concurrent: ContextShift: MonadResourceErr](client: Client[F], config: GBQConfig, jobConfig: GBQJobConfig) extends Destination[F] with Logging {
     def destinationType: DestinationType = DestinationType("gbq", 1L)
   
     def sinks: NonEmptyList[ResultSink[F]] = NonEmptyList(gbqSink)
@@ -52,9 +54,9 @@ final class GBQDestination[F[_]: Concurrent: ContextShift: MonadResourceErr](pro
 }
 
 object GBQDestination {
-    def apply[F[_]: Concurrent: ContextShift: MonadResourceErr, C](config: String)
+    def apply[F[_]: Concurrent: ContextShift: MonadResourceErr, C](client: Client[F], config: GBQConfig, jobConfig: GBQJobConfig)
     : Resource[F, Either[InitializationError[C], Destination[F]]] = {
-      val x: Either[InitializationError[C], Destination[F]] = new GBQDestination[F](config).asRight[InitializationError[C]]
+      val x: Either[InitializationError[C], Destination[F]] = new GBQDestination[F](client, config, jobConfig).asRight[InitializationError[C]]
       Resource.liftF(x.pure[F])
     }
 }

@@ -20,9 +20,9 @@ import slamdata.Predef._
 
 import argonaut._ , Argonaut._
 
-final case class GBQAccessToken(token: String)
-final case class GBQDestinationTable(project: String, dataset: String, table: String)
 
+final case class GBQDestinationTable(project: String, dataset: String, table: String)
+  
 sealed trait  WriteDisposition
 final case class WriteAppend(value: String) extends WriteDisposition
 final case class WriteTruncate(value: String) extends WriteDisposition
@@ -41,6 +41,9 @@ final case class GBQJobConfig(
 )
 
 object GBQJobConfig {
+
+
+
   implicit val GBQJobConfigDecodeJson: DecodeJson[GBQJobConfig] =
     DecodeJson(c => {
       val load = c --\ "configuration" --\ "load"
@@ -87,20 +90,12 @@ object GBQJobConfig {
       datasetId <- (c --\ "datasetId").as[String]
       tableId <- (c --\ "tableId").as[String] 
     } yield GBQDestinationTable(projectId, datasetId, tableId))
-
-  //TODO: redact the token value
-  implicit val GBQAccessTokenDecodeJson: DecodeJson[GBQAccessToken] = 
-    DecodeJson(c => for {
-        token <- (c --\ "token").as[String]
-    } yield GBQAccessToken(token))
-
-  implicit val GBQAccessTokenEncodeJson: EncodeJson[GBQAccessToken] = 
-    EncodeJson(config => Json.obj(
-      "value" := config.token.value
-    ))
 }
 
 /*
+Schema info: https://cloud.google.com/bigquery/docs/reference/rest/v2/tables#TableFieldSchema
+
+
 Figure out what/where these are/do/come from:
 
 a. TABLE_COLUMNS
