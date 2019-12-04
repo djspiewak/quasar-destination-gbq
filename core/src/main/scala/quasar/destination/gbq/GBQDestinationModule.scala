@@ -18,18 +18,13 @@ package quasar.destination.gbq
 
 import slamdata.Predef._
 
-
 import quasar.api.destination.{Destination, DestinationType, DestinationError}
 import quasar.api.destination.DestinationError.InitializationError
 import quasar.connector.{DestinationModule, MonadResourceErr}
 
-import argonaut._, Argonaut._
-
-import cats.effect.{Concurrent, ConcurrentEffect, ContextShift, Resource, Timer}
-import cats.data.EitherT
-import cats.implicits._
-
 import org.asynchttpclient.{AsyncHttpClientConfig, DefaultAsyncHttpClientConfig}
+
+import argonaut._, Argonaut._
 
 import org.http4s.Uri
 import org.http4s.Status
@@ -46,6 +41,9 @@ import org.http4s.util.threads.threadFactory
 import org.http4s.EntityEncoder
 import org.http4s.argonaut.jsonEncoderOf
 
+import cats.effect.{Concurrent, ConcurrentEffect, ContextShift, Resource, Timer}
+import cats.data.EitherT
+import cats.implicits._
 import eu.timepit.refined.auto._
 import scala.util.Either
 import scalaz.NonEmptyList

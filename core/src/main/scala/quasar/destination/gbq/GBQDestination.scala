@@ -80,14 +80,19 @@ final class GBQDestination[F[_]: Concurrent: ContextShift: MonadResourceErr](
 
       for {
         tableName <- Stream.eval[F, String](tableNameF)
+
         gbqJobConfig = formGBQJobConfig(gbqSchema, config.project, config.datasetId, tableName)
+        eitherloc <- Stream.eval(mkGbqJob(client, config.token, config.project, gbqJobConfig))
 
         _ <- Stream.eval(
           Sync[F].delay(
             log.info(s"(re)creating ${config.project}.${config.datasetId}.${tableName} with schema ${columns.show}")))
 
-        loc = mkGbqJob(client, config.token, config.project, gbqJobConfig)
-        _ = println("location: " + loc)
+        // now we have everything to upload bytes
+        _ <- eitherloc match {
+          case Right(u) => upload(client, bytes, u)
+          case _ => ???
+        }
       } yield ()
   }
 
@@ -161,9 +166,9 @@ final class GBQDestination[F[_]: Concurrent: ContextShift: MonadResourceErr](
     // curl --fail -i -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-type: application/json" --data @- -X POST "https://www.googleapis.com/upload/bigquery/v2/projects/${DESTINATION_PROJECT_ID}/jobs?uploadType=resumable")
     // this will take the Location URL returned from the Job Put Response, plus the columns, bytes, and path?
 
-    // private def upload(client: Client[F], columns: List[TableColumn], bytes: Stream[F, Byte], uploadLocation: Uri): Stream[F, Unit] = {
-    //   ???
-    // }
+    private def upload(client: Client[F], bytes: Stream[F, Byte], uploadLocation: Uri): Stream[F, Unit] = {
+      ???
+    }
 }
 
 object GBQDestination {
