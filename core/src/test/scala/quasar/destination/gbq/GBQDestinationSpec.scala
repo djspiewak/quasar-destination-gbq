@@ -16,23 +16,17 @@
 
 package quasar.destination.gbq
 
-import slamdata.Predef._
-import argonaut._, Argonaut._
+import quasar.EffectfulQSpec
 
-final case class GBQConfig(token: String, project: String, datasetId: String)
+import scala.concurrent.ExecutionContext
+import scala.concurrent.ExecutionContext.Implicits.global
 
-object GBQConfig {
-  //TODO: redact access token
-  implicit val GBQConfigCodecJson: CodecJson[GBQConfig] =
-    CodecJson(
-      (g: GBQConfig) =>
-        ("token" := g.token) ->:
-        ("project" := g.project) ->:
-        ("datasetId" := g.datasetId) ->:
-        jEmptyObject,
-      c => for {
-        token <- (c --\ "token").as[String]
-        project <- (c --\ "project").as[String]
-        datasetId <- (c --\ "datasetId").as[String]
-      } yield GBQConfig(token, project, datasetId))
+import cats.effect.{IO, Timer}
+object GBQDestinationSpec extends EffectfulQSpec[IO] {
+  implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
+
+  "uploads results" >>* {
+    IO(false must beTrue)
+  }
+
 }

@@ -38,53 +38,23 @@ import org.http4s.Credentials
 import org.http4s.headers.Authorization
 import org.http4s.Request
 import org.http4s.Method
+import org.http4s.headers.`Content-Type`
+import org.http4s.{MediaType => MT}
 import org.http4s.client.Client
 import org.http4s.client.asynchttpclient.AsyncHttpClient
 import org.http4s.util.threads.threadFactory
+import org.http4s.EntityEncoder
+import org.http4s.argonaut.jsonEncoderOf
 
 import eu.timepit.refined.auto._
 import scala.util.Either
 import scalaz.NonEmptyList
 
 object GBQDestinationModule extends DestinationModule {
-  //import quasar.destination.gbq.{GBQJobConfig, GBQConfig}
 
   def destinationType = DestinationType("gbq", 1L)
 
   def sanitizeDestinationConfig(config: Json): Json = ???
-
-  def jobCfg: Json = {
-    // TODO: fill in schema once we have the columns
-    // along with projectId, datasetId will be table name, 
-    // and tableId will be reform-table-<uuid>
-    val jobcfg = Json.obj(
-      "configuration" := Json.obj(
-        "load" := Json.obj(
-          "sourceFormat" := jString("CSV"),
-          "skipLeadingRows" := jNumber(1),
-          "allowQuotedNewLines" := jString("true"),
-          "schemaUpdateOptions" := jString("ALLOW_FIELD_ADDITION") -->>: jEmptyArray,
-          "schema" := Json.obj(
-            "fields" := Json.array(
-              Json.obj(
-                "type" := jString("STRING"),
-                "name" := jString("Manager")
-              ),
-              Json.obj(
-                "type" := jString("INT"),
-                "name" := jString("Id")
-              )
-            )
-          ),
-          "timePartition" := jString("DAY"),
-          "writeDisposition" := jString("WRITE_APPEND"),
-          "destinationTable" := Json.obj(
-            "projectId" := jString("myproject"),
-            "datasetId" := jString("mydataset"),
-            "tableId" := jString("mytable")))))
-
-      jobcfg 
-  }
 
   private def mkConfig[F[_]]: AsyncHttpClientConfig =
     new DefaultAsyncHttpClientConfig.Builder()
@@ -109,49 +79,82 @@ object GBQDestinationModule extends DestinationModule {
   // 401 invalid auth credentials
   // 404 not found
   private def isLive[F[_]: Concurrent: ContextShift](
-    client: Client[F],
-    token: String,
-    project: String): F[Either[InitializationError[Json], Unit]] = {
-      val authToken = Authorization(Credentials.Token(AuthScheme.Bearer, token))
-      val request = Request[F](
-        method = Method.GET,
-        uri = Uri.fromString(s"https://www.googleapis.com/bigquery/v2/projects/${project}/datasets").getOrElse(Uri())
-      ).withHeaders(authToken)
-      //TODO: should this be wrapped with Concurrent[F]?
-      client.fetch(request) { resp =>
-        resp.status match {
-          case Status.Ok => 
-            ().asRight[InitializationError[Json]].pure[F]
-          //TODO: fix error messages
-          case Status.BadRequest => 
-            DestinationError.invalidConfiguration((destinationType, jString("project: " + project), NonEmptyList("Project does not exist"))).asLeft.pure[F]
-          case Status.Unauthorized => 
-            DestinationError.accessDenied((destinationType, jString("token: REDACTED"), "Access denied")).asLeft.pure[F]
-          case status => 
-            DestinationError.malformedConfiguration((destinationType, jString("Reason: " + status.reason), "Response Code: " + status.code)).asLeft.pure[F]
-        }
+      client: Client[F],
+      token: String,
+      project: String): F[Either[InitializationError[Json], Unit]] = {
+    val authToken = Authorization(Credentials.Token(AuthScheme.Bearer, token))
+    val request = Request[F](
+      method = Method.GET,
+      uri = Uri.fromString(s"https://www.googleapis.com/bigquery/v2/projects/${project}/datasets").getOrElse(Uri())
+    ).withHeaders(authToken)
+
+    client.fetch(request) { resp =>
+      resp.status match {
+        case Status.Ok =>
+          ().asRight[InitializationError[Json]].pure[F]
+        //TODO: edit messages in errors
+        case Status.BadRequest => 
+          DestinationError.invalidConfiguration(
+            (destinationType, jString("project: " + project), 
+            NonEmptyList("Project does not exist"))).asLeft.pure[F]
+        case Status.Unauthorized => 
+          DestinationError.accessDenied(
+            (destinationType, jString("token: REDACTED"), 
+            "Access denied")).asLeft.pure[F]
+        case status => 
+          DestinationError.malformedConfiguration(
+            (destinationType, jString("Reason: " + status.reason), 
+            "Response Code: " + status.code)).asLeft.pure[F]
       }
     }
+  }
+
+  private def mkDataset[F[_]: Concurrent: ContextShift](
+      client: Client[F],
+      token: String,
+      project: String,
+      datasetId: String): F[Either[InitializationError[Json], Unit]] = {
+    implicit def jobConfigEntityEncoder: EntityEncoder[F, GBQDatasetConfig] = jsonEncoderOf[F, GBQDatasetConfig]
+
+    val dCfg = GBQDatasetConfig(project, datasetId)
+    val authToken = Authorization(Credentials.Token(AuthScheme.Bearer, token))
+    val datasetReq = Request[F](
+      method = Method.POST,
+      uri = Uri.fromString(s"https://bigquery.googleapis.com/bigquery/v2/projects/${project}/datasets").getOrElse(Uri()))
+        .withHeaders(authToken)
+        .withContentType(`Content-Type`(MT.application.json))
+        .withEntity(dCfg)
+
+      client.fetch(datasetReq) { resp =>
+        resp.status match {
+          case Status.Ok | Status.Conflict => {
+            println("status OK | Conflict when creating dataset: " + dCfg )
+            ().asRight[InitializationError[Json]].pure[F] //TODO: if we get conflict 409, the dataset already exists?
+          }
+          case status => {
+            println("hitting alternative case when creating dataset: " + dCfg)
+            println("resp: " + resp)
+            DestinationError.malformedConfiguration(
+              (destinationType, jString("Reason: " + status.reason), 
+              "Response Code: " + status.code)).asLeft.pure[F]
+          }
+        }
+      }
+  }
 
   def destination[F[_]: ConcurrentEffect: ContextShift: MonadResourceErr: Timer](config: Json): Resource[F,Either[InitializationError[Json],Destination[F]]] = {
 
-    //TODO: fix error message
+    //TODO: fix error message 
     val cfg: Either[InitializationError[Json], GBQConfig] = config.as[GBQConfig].fold(
       (err, c) => Left(DestinationError.malformedConfiguration[Json, InitializationError[Json]](destinationType, jString("stuff"), err)),
       Right(_))
 
-    //TODO: fix error message
-    val gbqJobConfig: Either[InitializationError[Json], GBQJobConfig] = jobCfg.as[GBQJobConfig].fold(
-      (err, c) => Left(DestinationError.malformedConfiguration[Json, InitializationError[Json]](destinationType, jString("stuff"), err)),
-      Right(_)
-    )
-
     val init = for {
       cfg <- EitherT(cfg.pure[Resource[F, ?]])
-      jobCfg <- EitherT(gbqJobConfig.pure[Resource[F, ?]])
       client <- EitherT(mkClient.map(_.asRight[InitializationError[Json]]))
       _ <- EitherT(Resource.liftF(isLive(client, cfg.token, cfg.project)))
-    } yield new GBQDestination[F](client, cfg, jobCfg): Destination[F]
+      _ <- EitherT(Resource.liftF(mkDataset(client, cfg.token, cfg.project, cfg.datasetId)))
+    } yield new GBQDestination[F](client, cfg): Destination[F]
 
     init.value
   }

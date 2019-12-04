@@ -17,22 +17,21 @@
 package quasar.destination.gbq
 
 import slamdata.Predef._
+
 import argonaut._, Argonaut._
 
-final case class GBQConfig(token: String, project: String, datasetId: String)
+final case class GBQDatasetConfig(projectId: String, datasetId: String)
 
-object GBQConfig {
-  //TODO: redact access token
-  implicit val GBQConfigCodecJson: CodecJson[GBQConfig] =
+object GBQDatasetConfig {
+  implicit val GBQConfigCodecJson: CodecJson[GBQDatasetConfig] =
     CodecJson(
-      (g: GBQConfig) =>
-        ("token" := g.token) ->:
-        ("project" := g.project) ->:
-        ("datasetId" := g.datasetId) ->:
-        jEmptyObject,
+      (g: GBQDatasetConfig) => Json.obj(
+        "datasetReference" := Json.obj(
+          "projectId" := g.projectId,
+          "datasetId" := g.datasetId 
+        )),
       c => for {
-        token <- (c --\ "token").as[String]
-        project <- (c --\ "project").as[String]
+        projectId <- (c --\ "projectId").as[String]
         datasetId <- (c --\ "datasetId").as[String]
-      } yield GBQConfig(token, project, datasetId))
+      } yield GBQDatasetConfig(projectId, datasetId))
 }

@@ -20,7 +20,6 @@ import slamdata.Predef._
 
 import argonaut._ , Argonaut._
 
-
 final case class GBQDestinationTable(project: String, dataset: String, table: String)
   
 sealed trait  WriteDisposition
@@ -41,8 +40,6 @@ final case class GBQJobConfig(
 )
 
 object GBQJobConfig {
-
-
 
   implicit val GBQJobConfigDecodeJson: DecodeJson[GBQJobConfig] =
     DecodeJson(c => {
@@ -66,6 +63,24 @@ object GBQJobConfig {
           writeDisposition,
           destinationTable)
     })
+  
+  implicit val GBQJobConfigEncodeJson: EncodeJson[GBQJobConfig] =
+    EncodeJson(cfg => Json.obj(
+      "configuration" := Json.obj(
+        "load" := Json.obj(
+          "sourceFormat" := cfg.sourceFormat,
+          "skipLeadingRows" := cfg.skipLeadingRows,
+          "allowQuotedNewLines" := cfg.allowQuotedNewLines,
+          "schemaUpdateOptions" := cfg.schemaUpdateOptions,
+          "schema" := Json.obj(
+            "fields" := cfg.schema.toList
+          ),
+          "timePartition" := cfg.timePartition,
+          "writeDisposition" := cfg.writeDisposition,
+          "destinationTable" := cfg.destinationTable
+        )
+      )
+    ))
 
   implicit val schemaDecodeJson: DecodeJson[GBQSchema] =
     DecodeJson(c => {
@@ -75,7 +90,13 @@ object GBQJobConfig {
       } yield GBQSchema(typ, name)
     })
 
-  val writeDispositionDecodeJson: DecodeJson[WriteDisposition] = 
+  implicit val schemaEncodeJson: EncodeJson[GBQSchema] =
+    EncodeJson(schema => Json.obj(
+      "type" := schema.typ,
+      "name" := schema.name
+    ))
+
+  implicit val writeDispositionDecodeJson: DecodeJson[WriteDisposition] = 
     DecodeJson {
       c => c.as[String].flatMap {
         case wp @ "WRITE_APPEND" => DecodeResult.ok(WriteAppend(wp))
@@ -84,69 +105,23 @@ object GBQJobConfig {
       }
     }
 
+  implicit val writeDispositionEncodeJson: EncodeJson[WriteDisposition] =
+    EncodeJson(wd => wd match {
+      case WriteAppend(value) => jString(value)
+      case WriteTruncate(value) => jString(value)
+    })
+
   implicit val GBQDestinationTableDecodeJson: DecodeJson[GBQDestinationTable] =
     DecodeJson(c => for {
       projectId <- (c --\ "projectId").as[String]
       datasetId <- (c --\ "datasetId").as[String]
       tableId <- (c --\ "tableId").as[String] 
     } yield GBQDestinationTable(projectId, datasetId, tableId))
+
+  implicit val GBQDestinationTableEncodeJson: EncodeJson[GBQDestinationTable] =
+    EncodeJson(dt => Json.obj(
+      "projectId" := dt.project,
+      "datasetId" := dt.dataset,
+      "tableId" := dt.table
+    ))
 }
-
-/*
-Schema info: https://cloud.google.com/bigquery/docs/reference/rest/v2/tables#TableFieldSchema
-
-
-Figure out what/where these are/do/come from:
-
-a. TABLE_COLUMNS
-  example: this is the table schema, we'll have to translate ours to gbq column types
-
-b. PARTITIONING_INFO
-  example: 
-    "timePartitioning": { "type": "DAY" }
-
-c. WRITE_DISPOSITION
-  example:
-    WRITE_APPEND | WRITE_TRUNCATE determine which to use
-
-d. DESTINATION_PROJECT_ID
-  example: we get this fom the user
-
-e. DESTINATION_DATASET_ID
-  example: what should we name the dataset? do we make new datasets for each table? can we stuff multiple table into the same dataset?
-
-f. TABLE_NAME
-  example: use the table name created in the ui? or create our own unique table name, like reform-table-{uuid}
-
-some of the above should come from the user during the destination config in the UI
-others will be need to computed/determined on our own and some will need the passed in destination config params to compute
-
-{
-  "configuration": {
-    "load": {
-      "sourceFormat": "CSV",
-      "skipLeadingRows": 1,
-      "allowQuotedNewlines": true,
-      "schemaUpdateOptions": ["ALLOW_FIELD_ADDITION"],
-      "schema": {
-        "fields": [
-                    { "type": "STRING",
-                      "name": "dateTime"
-                    },
-                    { "type": "STRING",
-                      "name": "to"
-                    }
-                  ]
-      },
-      $PARTITIONING_INFO
-      "writeDisposition": "$WRITE_DISPOSITION",
-      "destinationTable": {
-        "projectId": "$DESTINATION_PROJECT_ID",
-        "datasetId": "$DESTINATION_DATASET_ID",
-        "tableId": "$TABLE_NAME"
-      }
-    }
-  }
-}
-
- */

@@ -39,6 +39,7 @@ lazy val core = project
       "io.argonaut"  %% "argonaut" % ArgonautVersion),
 
     libraryDependencies ++= Seq(
+      "org.http4s" %% "http4s-argonaut" % Http4sVersion,
       "org.http4s" %% "http4s-async-http-client" % Http4sVersion,
       "org.specs2" %% "specs2-core" % SpecsVersion % Test,
       "com.slamdata" %% "quasar-foundation" % QuasarVersion,
