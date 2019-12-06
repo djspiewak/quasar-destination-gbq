@@ -30,7 +30,7 @@ final case class GBQSchema(typ: String, name: String)
 
 final case class GBQJobConfig(
   sourceFormat: String,
-  skipLeadingRows: Int,
+  skipLeadingRows: String,
   allowQuotedNewLines: String,
   schemaUpdateOptions: List[String],
   schema: List[GBQSchema], 
@@ -46,7 +46,7 @@ object GBQJobConfig {
       val load = c --\ "configuration" --\ "load"
       for {
         sourceFormat <- (load --\ ("sourceFormat")).as[String]
-        skipLeadingRows <- (load --\ "skipLeadingRows").as[Int]
+        skipLeadingRows <- (load --\ "skipLeadingRows").as[String]
         allowQuotedNewLines <- (load --\ "allowQuotedNewLines").as[String]
         schemaUpdateOptions <- (load --\ "schemaUpdateOptions").as[List[String]]
         schema <- (load --\ "schema" --\ "fields").as[List[GBQSchema]]

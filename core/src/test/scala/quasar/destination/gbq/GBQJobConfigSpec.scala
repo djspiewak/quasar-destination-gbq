@@ -29,7 +29,7 @@ object GBQJobConfigSpec extends Specification {
       "configuration" := Json.obj(
         "load" := Json.obj(
           "sourceFormat" := jString("CSV"),
-          "skipLeadingRows" := jNumber(1),
+          "skipLeadingRows" := jString("1"),
           "allowQuotedNewLines" := jString("true"),
           "schemaUpdateOptions" := jString("ALLOW_FIELD_ADDITION") -->>: jEmptyArray,
           "schema" := Json.obj(
@@ -54,7 +54,7 @@ object GBQJobConfigSpec extends Specification {
     decode(gbqSampleConfig).toOption must beSome(
       GBQJobConfig(
         "CSV",
-        1,
+        "1",
         "true",
         List[String]("ALLOW_FIELD_ADDITION"),
         List[GBQSchema](GBQSchema("STRING", "Manager"), GBQSchema("INT", "Id")),

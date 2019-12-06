@@ -48,6 +48,7 @@ object GBQDestinationModuleSpec extends EffectfulQSpec[IO] {
   val iStream = new FileInputStream("/Users/nicandroflores/Documents/github/onprem/gcp-marketplace/travis-ci-reform-test-proj-b4f9fc4bf97e.json")
   val credentials = GoogleCredentials.fromStream(iStream).createScoped("https://www.googleapis.com/auth/bigquery")
   val accessToken: AccessToken = credentials.refreshAccessToken()
+  println("access Token: " + accessToken)
 
   //Errors when checking for project existance with token
   val malformedConfig = DestinationError.malformedConfiguration((GBQDestinationModule.destinationType, jString("Reason: Not Foun"), "Response Code: 404"))

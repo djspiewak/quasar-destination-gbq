@@ -88,8 +88,10 @@ object GBQDestinationModule extends DestinationModule {
 
     client.fetch(request) { resp =>
       resp.status match {
-        case Status.Ok =>
+        case Status.Ok => {
+          println("We have a live project folks!!!")
           ().asRight[InitializationError[Json]].pure[F]
+        }
         //TODO: edit messages in errors
         case Status.BadRequest => 
           DestinationError.invalidConfiguration(
@@ -126,7 +128,7 @@ object GBQDestinationModule extends DestinationModule {
       client.fetch(datasetReq) { resp =>
         resp.status match {
           case Status.Ok | Status.Conflict => {
-            println("status OK | Conflict when creating dataset: " + dCfg )
+            println("dataset created or we didn't do anything if it already existed: " + dCfg )
             ().asRight[InitializationError[Json]].pure[F] //TODO: if we get conflict 409, the dataset already exists?
           }
           case status => {
@@ -151,32 +153,9 @@ object GBQDestinationModule extends DestinationModule {
       cfg <- EitherT(cfg.pure[Resource[F, ?]])
       client <- EitherT(mkClient.map(_.asRight[InitializationError[Json]]))
       _ <- EitherT(Resource.liftF(isLive(client, cfg.token, cfg.project)))
-      _ <- EitherT(Resource.liftF(mkDataset(client, cfg.token, cfg.project, cfg.datasetId)))
+      _ <- EitherT(Resource.liftF(mkDataset(client, cfg.token, cfg.project, cfg.datasetId))) //TODO: should we do this in Destination???
     } yield new GBQDestination[F](client, cfg): Destination[F]
 
     init.value
   }
 }
-
-// --- arguments to job conifg ---
-// get data schema/column types
-// determine partitioning info
-// determine the write disposition
-// get the projectId
-// get/compute the datasetId
-// get/compute the tableId/table name
-
-// -- job setup --
-// make a request to create job
-//
-// echo $JOB_CONFIGURATION | curl --fail -i \
-//  -H "Authorization: Bearer $ACCESS_TOKEN" \
-//  -H "Content-type: application/json" \
-//  --data @- -X POST "https://www.googleapis.com/upload/bigquery/v2/projects/${DESTINATION_PROJECT_ID}/jobs?uploadType=resumable")
-
-
-// extract location from response
-
-// -- push data --
-// then stream data to job location url
-// stream data -> curl --fail -X PUT --data-binary @- ${JOB_URL%$'\r'}

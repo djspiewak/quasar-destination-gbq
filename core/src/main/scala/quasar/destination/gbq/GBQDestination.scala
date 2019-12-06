@@ -55,7 +55,6 @@ import quasar.api.table.TableColumn
 
  import shims._
 
-
 final class GBQDestination[F[_]: Concurrent: ContextShift: MonadResourceErr](
     client: Client[F], 
     config: GBQConfig) extends Destination[F] with Logging {
@@ -82,7 +81,9 @@ final class GBQDestination[F[_]: Concurrent: ContextShift: MonadResourceErr](
         tableName <- Stream.eval[F, String](tableNameF)
 
         gbqJobConfig = formGBQJobConfig(gbqSchema, config.project, config.datasetId, tableName)
+        _ = println("job config: " + gbqJobConfig.asJson)
         eitherloc <- Stream.eval(mkGbqJob(client, config.token, config.project, gbqJobConfig))
+        _ = println("Location URL: " + eitherloc)
 
         _ <- Stream.eval(
           Sync[F].delay(
@@ -90,8 +91,11 @@ final class GBQDestination[F[_]: Concurrent: ContextShift: MonadResourceErr](
 
         // now we have everything to upload bytes
         _ <- eitherloc match {
-          case Right(u) => upload(client, bytes, u)
-          case _ => ???
+          case Right(u) => {
+            println("about to upload bytes")
+            upload(client, bytes, u, config.token)
+          }
+          case _ => ??? //TODO: no Location uri to upload to
         }
       } yield ()
   }
@@ -103,7 +107,7 @@ final class GBQDestination[F[_]: Concurrent: ContextShift: MonadResourceErr](
       tableId: String): GBQJobConfig =
     GBQJobConfig(
       "CSV",
-      1,
+      "1",
       "true",
       List[String]("ALLOW_FIELD_ADDITION"),
       schema,
@@ -116,15 +120,15 @@ final class GBQDestination[F[_]: Concurrent: ContextShift: MonadResourceErr](
   private def tblColumnToGBQSchema(cols: List[TableColumn]): List[GBQSchema] =
     cols map { col => col match {
       case TableColumn(name, tpe) => tpe match {
-        case ColumnType.String => GBQSchema(name, "STRING")
-        case ColumnType.Boolean => GBQSchema(name, "BOOL")
-        case ColumnType.Number => GBQSchema(name, "NUMERIC")
-        case ColumnType.LocalDate => GBQSchema(name, "DATE")
-        case ColumnType.LocalDateTime => GBQSchema(name, "DATETIME")
-        case ColumnType.LocalTime => GBQSchema(name, "TIME")
+        case ColumnType.String => GBQSchema("STRING", name)
+        case ColumnType.Boolean => GBQSchema("BOOL", name)
+        case ColumnType.Number => GBQSchema("NUMERIC", name)
+        case ColumnType.LocalDate => GBQSchema("DATE", name)
+        case ColumnType.LocalDateTime => GBQSchema("DATETIME", name)
+        case ColumnType.LocalTime => GBQSchema("TIME", name)
         case ColumnType.OffsetDate => ???
-        case ColumnType.OffsetDateTime => GBQSchema(name, "TIMESTAMP")
-        case ColumnType.OffsetTime => GBQSchema(name, "TIMESTAMP")
+        case ColumnType.OffsetDateTime => GBQSchema("TIMESTAMP", name)
+        case ColumnType.OffsetTime => GBQSchema("TIMESTAMP", name)
         case ColumnType.Interval => ???
         case ColumnType.Null => ???
       }
@@ -141,33 +145,58 @@ final class GBQDestination[F[_]: Concurrent: ContextShift: MonadResourceErr](
 
     val authToken = Authorization(Credentials.Token(AuthScheme.Bearer, token))
 
+    println("job config: " + jCfg)
+    println("job config json: " + jCfg.asJson)
+
     val jobReq = Request[F](
       method = Method.POST,
       uri = Uri.fromString(s"https://bigquery.googleapis.com/upload/bigquery/v2/projects/${project}/jobs?uploadType=resumable").getOrElse(Uri()))
         .withHeaders(authToken)
         .withContentType(`Content-Type`(MT.application.json))
         .withEntity(jCfg)
+
+    println("Job Request: " + jobReq)
     
     client.fetch(jobReq) { resp =>
       resp.status match {
         case Status.Ok => resp.headers match {
-          case Location(loc) => loc.uri.asRight.pure[F]
+          case Location(loc) => {
+            println("Location URI: " + loc.uri)
+            loc.uri.asRight.pure[F]
+          }
         }
         case _ => {
-          println("resp: " + resp.headers)
+          println("resp: " + resp)
           DestinationError.malformedConfiguration((destinationType, jString("Reason: " + resp.status.reason), "Response Code: " + resp.status.code)).asLeft.pure[F]
         }
       }
     }
   }
 
+    private def upload(client: Client[F], bytes: Stream[F, Byte], uploadLocation: Uri, token: String): Stream[F, Unit] = {
+      val authToken = Authorization(Credentials.Token(AuthScheme.Bearer, token))
+      val destReq = Request[F](method = Method.POST, uri = uploadLocation)
+          .withHeaders(authToken)
+          .withContentType(`Content-Type`(MT.application.`octet-stream`))
+          .withEntity(bytes)
 
-    //echo $JOB_CONFIGURATION | 
-    // curl --fail -i -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-type: application/json" --data @- -X POST "https://www.googleapis.com/upload/bigquery/v2/projects/${DESTINATION_PROJECT_ID}/jobs?uploadType=resumable")
-    // this will take the Location URL returned from the Job Put Response, plus the columns, bytes, and path?
+      val x = client.fetch(destReq) {resp =>
+        resp.status match {
+          case Status.Ok => {
+            println("data uploaded: " + resp)
+            ().pure[F] //TODO: fix this?
+          }
+          case _ => {
+            println("data uploaded: " + resp)
+            ().pure[F] //TODO: fix this, error out correctly
+          }
+        }
+      }
 
-    private def upload(client: Client[F], bytes: Stream[F, Byte], uploadLocation: Uri): Stream[F, Unit] = {
-      ???
+      Stream.eval(x)
+
+
+
     }
 }
 

@@ -36,11 +36,11 @@ lazy val core = project
     quasarPluginDependencies ++= Seq(
       "com.google.auth" % "google-auth-library-oauth2-http" % "0.18.0",
       "org.slf4s" %% "slf4s-api" % SimpileLogging4Scala,
-      "io.argonaut"  %% "argonaut" % ArgonautVersion),
-
-    libraryDependencies ++= Seq(
       "org.http4s" %% "http4s-argonaut" % Http4sVersion,
       "org.http4s" %% "http4s-async-http-client" % Http4sVersion,
+      "io.argonaut" %% "argonaut" % ArgonautVersion),
+
+    libraryDependencies ++= Seq(
       "org.specs2" %% "specs2-core" % SpecsVersion % Test,
       "com.slamdata" %% "quasar-foundation" % QuasarVersion,
       "com.slamdata" %% "quasar-foundation" % QuasarVersion % Test classifier "tests",
